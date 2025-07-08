@@ -1,2 +1,3 @@
-# SmartStake - OCR Backend
-Questo backend riceve immagini via POST (`/ocr`) e restituisce il testo letto tramite OCR.
+# SmartStake Backend
+
+Backend completo per tracciamento scommesse con login, OCR e gestione utenti.
