@@ -1,37 +1,24 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI
+from app import auth, bets, ocr  # importa i router separati
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
-import pytesseract
-import io
 
 app = FastAPI()
 
-# CORS per permettere richieste dal frontend (Next.js su Vercel)
+# CORS: richieste da frontend esterni (Next.js ecc.)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In produzione meglio specificare il dominio
+    allow_origins=["*"],  # in produzione: metti solo il dominio frontend
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Endpoint test base
 @app.get("/")
 def read_root():
-    return {"status": "SmartStake backend attivo"}
+    return {"message": "SmartStake backend è attivo"}
 
-@app.post("/ocr/")
-async def extract_text(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Il file deve essere un'immagine")
-
-    try:
-        contents = await file.read()
-        image = Image.open(io.BytesIO(contents))
-        text = pytesseract.image_to_string(image)
-
-        return {
-            "text": text
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Errore nell'elaborazione dell'immagine: {str(e)}")
+# Includi tutte le route modulari
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(bets.router, prefix="/bets", tags=["bets"])
+app.include_router(ocr.router, prefix="/ocr", tags=["ocr"])
