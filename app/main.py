@@ -1,24 +1,32 @@
-from fastapi import FastAPI
-from app import auth, bets, ocr  # importa i router separati
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
+import pytesseract
+import io
 
 app = FastAPI()
 
-# CORS: richieste da frontend esterni (Next.js ecc.)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # in produzione: metti solo il dominio frontend
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Endpoint test base
 @app.get("/")
 def read_root():
-    return {"message": "SmartStake backend è attivo"}
+    return {"status": "SmartStake backend attivo"}
 
-# Includi tutte le route modulari
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(bets.router, prefix="/bets", tags=["bets"])
-app.include_router(ocr.router, prefix="/ocr", tags=["ocr"])
+@app.post("/ocr/")
+async def extract_text(file: UploadFile = File(...)):
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Il file deve essere un'immagine")
+
+    try:
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents))
+        text = pytesseract.image_to_string(image)
+        return {"text": text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore nell'OCR: {str(e)}")
