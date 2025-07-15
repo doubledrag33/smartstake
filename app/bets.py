@@ -1,25 +1,32 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.models import Bet
-from app.database import get_db
-from pydantic import BaseModel
+from . import models, database, schemas, auth
 from typing import List
 
 router = APIRouter(prefix="/bets", tags=["bets"])
 
-class BetIn(BaseModel):
-    event: str
-    quota: float
-    stake: float
-    esito: str
+def get_db():
+    db = database.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-@router.post("/")
-def create_bet(bet: BetIn, db: Session = Depends(get_db)):
-    new_bet = Bet(**bet.dict())
-    db.add(new_bet)
+@router.post("/", response_model=schemas.BetRead)
+def create_bet(
+    bet_in: schemas.BetCreate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    bet = models.Bet(**bet_in.dict(), user_id=current_user.id)
+    db.add(bet)
     db.commit()
-    return {"message": "Bet saved"}
+    db.refresh(bet)
+    return bet
 
-@router.get("/", response_model=List[BetIn])
-def get_bets(db: Session = Depends(get_db)):
-    return db.query(Bet).all()
+@router.get("/", response_model=List[schemas.BetRead])
+def list_bets(
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    return db.query(models.Bet).filter(models.Bet.user_id == current_user.id).all()
