@@ -30,3 +30,4 @@ async def extract_text(file: UploadFile = File(...)):
         return {"text": text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore nell'OCR: {str(e)}")
+
