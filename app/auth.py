@@ -1,30 +1,33 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from app.models import User
-from app.database import get_db
-import jwt
+from . import models, database, utils, schemas
+import os
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-SECRET_KEY = "smartstake-secret"
 
-class UserLogin(BaseModel):
-    username: str
-    password: str
+def get_db():
+    db = database.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-@router.post("/login")
-def login(user: UserLogin, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.username == user.username, User.password == user.password).first()
-    if not db_user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = jwt.encode({"user_id": db_user.id}, SECRET_KEY, algorithm="HS256")
-    return {"access_token": token}
-
-@router.post("/register")
-def register(user: UserLogin, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.username == user.username).first():
-        raise HTTPException(status_code=400, detail="User already exists")
-    new_user = User(username=user.username, password=user.password)
-    db.add(new_user)
+@router.post("/register", response_model=schemas.UserRead)
+def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+    if db.query(models.User).filter(models.User.email == user_in.email).first():
+        raise HTTPException(status_code=400, detail="Email già registrata")
+    hashed = utils.get_password_hash(user_in.password)
+    user = models.User(email=user_in.email, hashed_password=hashed)
+    db.add(user)
     db.commit()
-    return {"message": "User created successfully"}
+    db.refresh(user)
+    return user
+
+@router.post("/token")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    if not user or not utils.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenziali errate")
+    access_token = utils.create_access_token({"sub": str(user.id)})
+    return {"access_token": access_token, "token_type": "bearer"}
