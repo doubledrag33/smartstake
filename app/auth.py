@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from . import models, database, utils, schemas
 import os
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 def get_db():
     db = database.SessionLocal()
@@ -12,6 +13,14 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    from .utils import verify_token
+    user_id = verify_token(token)
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Utente non trovato")
+    return user
 
 @router.post("/register", response_model=schemas.UserRead)
 def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
