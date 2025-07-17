@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from . import models, database, schemas, auth
-from typing import List
 
 router = APIRouter(prefix="/bets", tags=["bets"])
 
@@ -24,7 +23,7 @@ def create_bet(
     db.refresh(bet)
     return bet
 
-@router.get("/", response_model=List[schemas.BetRead])
+@router.get("/", response_model=list[schemas.BetRead])
 def list_bets(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
